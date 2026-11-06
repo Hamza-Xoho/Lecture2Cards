@@ -149,9 +149,12 @@ def drafting(build, data, args):
              'Draft rules: load phases/draft.md from the installed ankiv2 skill',
              f'Figures: cards figures --build {_show(build.root)} --summary (text only; never read full PNGs)',
              f'Action: write drafts.jsonl and skipped.jsonl in {_show(build.root)}']
-    figures_path = build.path('source/figures_summary.json')
-    if figures_path.is_file() and read_json(figures_path).get('figures'):
-        lines.append('Figures: use phases/occlusion.md and preview only the generated *_preview.png')
+    slides = read_json(build.path('source/slides.json'))['slides']
+    labelled = sum(1 for slide in slides for figure in slide.get('figures') or []
+                   if len(figure.get('ocr_labels') or []) >= 5)
+    if labelled:
+        lines.append(f'Figures: {labelled} labelled diagrams — read phases/occlusion.md, then '
+                     'verify only the generated *_preview.png')
     target_data = read_json(build.path('target.json'))
     if target_data.get('create_deck'):
         lines.append(f'Also: tools.anki.create_deck (“{target_data["deck"]}”), then '

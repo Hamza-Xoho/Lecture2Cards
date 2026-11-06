@@ -61,6 +61,30 @@ def test_empty_labels_asks_for_estimated_rectangles(figure_build):
     assert not (figure_build/'drafts.jsonl').exists()
 
 
+def summaries(build):
+    from types import SimpleNamespace
+    from cards.figures import run as figures
+    return figures(SimpleNamespace(build=build, summary=True))
+
+
+def test_summary_lists_labels_without_images(figure_build):
+    (figure_build / 'target.json').unlink()
+    result = summaries(figure_build)
+    text = '\n'.join(result.lines)
+    assert result.status == 'OK' and 'p01_f1' in text and 'Label' in text
+    markdown = (figure_build / 'source/figures_summary.md').read_text()
+    assert '## p01_f1' in markdown and 'labels:' in markdown
+    assert not (figure_build / 'source/figures/p01_f1_io.png').exists()
+    from cards.common.output import render
+    output = render(result)
+    assert len(output) <= 2000 and len(output.splitlines()) <= 40
+
+
+def test_summary_marks_existing_occlusion(figure_build):
+    run(figure_build)
+    assert 'draft n001' in '\n'.join(summaries(figure_build).lines)
+
+
 def test_existing_edited_draft_is_preserved(figure_build):
     run(figure_build)
     path = figure_build/'drafts.jsonl'

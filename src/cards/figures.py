@@ -4,13 +4,77 @@ import math
 import re
 
 from .common.errors import CardsError, Refused
-from .common.files import read_json, read_jsonl, write_json, write_jsonl
+from .common.files import read_json, read_jsonl, write_json, write_jsonl, write_text
 from .common.output import Result
 from .common.paths import Build
 from .common.source_data import slides_data
 from .extract.ocr import _norm
 
 TOOL = 'cards figures'
+
+
+def _labels(figure):
+    """Unique OCR label texts, in reading order."""
+    return list(dict.fromkeys(
+        region.get('text', '').strip() for region in figure.get('ocr_labels') or []
+        if isinstance(region, dict) and region.get('text', '').strip()))
+
+
+def _kind(labels):
+    return 'anatomy_diagram' if len(labels) >= 5 else ('diagram' if labels else 'image')
+
+
+def _summary(build):
+    """Text-only figure listing: the agent never reads a full-resolution PNG."""
+    data = slides_data(build)
+    drafts = build.path('drafts.jsonl')
+    drafts = list(read_jsonl(drafts)) if drafts.is_file() else []
+    occluded = {row.get('group'): row.get('id') for row in drafts
+                if isinstance(row, dict) and row.get('kind') == 'io'}
+    rows = []
+    for slide in data['slides']:
+        for figure in slide.get('figures') or []:
+            if not isinstance(figure, dict):
+                continue
+            labels = _labels(figure)
+            regions = [region for region in figure.get('ocr_labels') or []
+                       if isinstance(region, dict) and isinstance(region.get('group'), int)]
+            seen = {}
+            for region in regions:
+                seen.setdefault(region['group'], region.get('text', '').strip())
+            rows.append({'id': figure.get('fig_id'), 'slide': slide['n'],
+                         'labels': labels, 'kind': _kind(labels),
+                         'groups': [f'{key} {value}' for key, value in sorted(seen.items())],
+                         'draft': occluded.get(figure.get('fig_id'))})
+    parts = ['# Figure candidates', '',
+             'Text only: decide from these labels, then run `cards figures --fig <id>`.',
+             'Read only the generated `*_preview.png`, never the full figure.', '']
+    for row in rows:
+        parts.append(f"## {row['id']} — slide {row['slide']} · {row['kind']} · "
+                     f"{len(row['labels'])} labels")
+        if row['groups']:
+            parts.append('groups: ' + '; '.join(row['groups']))
+        else:
+            parts.append('labels: ' + (', '.join(row['labels']) or 'none (estimate regions)'))
+        if row['draft']:
+            parts.append(f'occluded draft: {row["draft"]}')
+        parts.append('')
+    path = build.path('source/figures_summary.md')
+    write_text(path, '\n'.join(parts), TOOL)
+    lines = [f"{len(rows)} figure candidates · "
+             f"{sum(1 for row in rows if row['labels'])} with OCR labels"]
+    for row in rows[:8]:
+        draft = f" · draft {row['draft']}" if row['draft'] else ''
+        lines.append(f"{row['id']} · slide {row['slide']} · {row['kind']} · "
+                     f"{len(row['labels'])} labels{draft}")
+        if row['labels']:
+            more = '' if len(row['labels']) <= 6 else ', …'
+            lines.append('  ' + ', '.join(row['labels'][:6]) + more)
+    if len(rows) > 8:
+        lines.append(f'… {len(rows)-8} more in source/figures_summary.md')
+    if rows:
+        lines.append('Next: cards figures --build <build> --fig <id> (preview only)')
+    return Result(lines=lines, files=[path])
 
 
 def _invalid(field, remedy='repair the figure input and retry'):
@@ -111,10 +175,12 @@ def _images(image, regions, media, preview):
 
 def run(args):
     build = Build(args.build)
+    if getattr(args, 'summary', False):
+        return _summary(build)
     data = slides_data(build)
     ident = getattr(args, 'fig', None) or getattr(args, 'figure', None)
     if not isinstance(ident, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', ident):
-        raise _invalid('fig', 'choose a fig_id from source/slides.json')
+        raise _invalid('fig', 'choose --fig <fig_id> or --summary')
     matches = [(slide['n'], fig) for slide in data['slides'] for fig in slide['figures']
                if isinstance(fig, dict) and fig.get('fig_id') == ident]
     if len(matches) != 1:
