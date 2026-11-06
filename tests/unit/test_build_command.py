@@ -63,19 +63,39 @@ def test_build_done_build_is_not_replayed(tmp_path):
     assert made.returncode == 0 and 'complete' in made.stdout
 
 
-def test_review_scope_rules():
-    log = {'conflicts': [{'id': 'n001'}], 'open_blockers': [], 'unresolved': [],
-           'css_fix_needed': []}
-    assert build.review_scope(None, 1, log) == (['n001'], False)
-    wide = {'conflicts': [{'id': f'n00{i}'} for i in range(1, 5)], 'open_blockers': [],
-            'unresolved': [], 'css_fix_needed': []}
-    assert build.review_scope(None, 1, wide) == ([f'n00{i}' for i in range(1, 5)], True)
+def scope_fixture(tmp_path):
+    from cards.common.paths import Build
+    folder = tmp_path / 'b'
+    folder.mkdir()
+    (folder / 'drafts.jsonl').write_text(
+        '{"id":"n001","fields":{}}\n{"id":"n002","fields":{}}\n')
+    maintainer = ('# Review Report — anki-maintainer\n\n## Note n001 — PASS\n\n'
+                  '## Note n002 — PASS\n\n## Summary\n**Verdict:** PASS\n**Stats:** notes=2\n')
+    student = ('# Review Report — anki-student\n\n## Note n001 — FIX — V1 (blocker)\n'
+               '**Evidence:** x\n**Attempt:** answer → alternative\n\n## Note n002 — PASS\n'
+               '**Attempt:** answer → right\n\n## Summary\n**Verdict:** PASS_WITH_FIXES\n'
+               '**Stats:** notes=2\n')
+    (folder / 'review/round1').mkdir(parents=True)
+    (folder / 'review/round1/maintainer_report.md').write_text(maintainer)
+    (folder / 'review/round1/student_report.md').write_text(student)
+    return Build(folder)
+
+
+def test_review_scope_rules(tmp_path):
+    b = scope_fixture(tmp_path)
     blocker = {'conflicts': [], 'open_blockers': [{'note_id': 'n001'}], 'unresolved': [],
                'css_fix_needed': []}
-    assert build.review_scope(None, 1, blocker) == ([], True)
+    assert build.review_scope(b, 1, blocker) == (['n001'], True)
+    wide = {'conflicts': [{'id': f'n00{i}'} for i in range(1, 5)], 'open_blockers': [],
+            'unresolved': [], 'css_fix_needed': []}
+    assert build.review_scope(b, 1, wide) == ([f'n00{i}' for i in range(1, 5)], True)
+    assert build.review_scope(b, 2, wide) is None
+
+
+def test_verdict_disagreement_scopes_a_small_round(tmp_path):
+    b = scope_fixture(tmp_path)
     clean = {'conflicts': [], 'open_blockers': [], 'unresolved': [], 'css_fix_needed': []}
-    assert build.review_scope(None, 1, clean) is None
-    assert build.review_scope(None, 2, log) is None
+    assert build.review_scope(b, 1, clean) == (['n001'], False)
 
 
 def test_build_help_is_valid():

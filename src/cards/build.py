@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 from . import state, extract, target, check, render, gate, report
 from .review import packets, apply
-from .review.apply import report_path
+from .review.apply import load_report, report_path
 from .write import plan
 from .common.errors import CardsError, Refused
 from .common.files import read_json, read_jsonl, _write
@@ -201,13 +201,31 @@ def _rerender(build, ids):
         render.run(_args(build, only=None, per_sheet=8, anki_html=None))
 
 
+def _verdict_conflicts(build, rnd):
+    """Notes one reviewer passed and the other sent back."""
+    base = build.path(f'drafts.r{rnd}.jsonl')
+    if not base.is_file():
+        base = build.path('drafts.jsonl')
+    notes = [n for n in read_jsonl(base) if isinstance(n, dict) and isinstance(n.get('id'), str)]
+    ids = {n['id'] for n in notes}
+    fields = {n['id']: n.get('fields', {}) for n in notes}
+    verdicts = {}
+    for who in ('maintainer', 'student'):
+        path = report_path(build, f'review/round{rnd}', who)
+        for row in load_report(path, who, ids, fields):
+            if row.get('type') == 'note':
+                verdicts.setdefault(row['note_id'], set()).add(row['verdict'])
+    return {ident for ident, seen in verdicts.items()
+            if 'pass' in seen and seen & {'fix', 'reject'}}
+
+
 def review_scope(build, rnd, log):
     """(ids, full_round) when round 2 is needed, else None."""
     if rnd >= 2:
         return None
     hard = {c['id'] for c in log.get('conflicts', [])
             if isinstance(c, dict) and isinstance(c.get('id'), str)}
-    ids = sorted(hard)
+    ids = sorted(hard | _verdict_conflicts(build, rnd))
     unresolved = log.get('unresolved') or []
     blockers = log.get('open_blockers') or []
     css = log.get('css_fix_needed') or []
@@ -245,7 +263,7 @@ def reviewed(build, data, args):
         if not _reports_ready(build, rnd):
             if not _packetized(build, rnd):
                 _page_images(build)
-                packets.run(_args(build, round=rnd, only=None, student_subset='half'))
+                packets.run(_args(build, round=rnd, only=None, student_subset='all'))
             return _pause_review(build, rnd, None, lines)
         result = apply.run(SimpleNamespace(build=str(build.root), round=rnd, decline=[]))
         log = _log(build, rnd)
