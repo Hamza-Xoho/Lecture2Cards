@@ -62,6 +62,21 @@ def ensure_started(build, data):
     return data
 
 
+def require_predecessor(build, data):
+    """No phase may run before the one before it is marked done."""
+    if data['phase'] == 'done':
+        return
+    index = state.PHASES.index(data['phase'])
+    if not index:
+        return
+    previous = state.PHASES[index-1]
+    if any(entry.get('phase') == previous and entry.get('status') == 'done'
+           for entry in data['history']):
+        return
+    raise Refused('E73', f'{data["phase"]}: previous phase {previous} not marked done',
+                  'complete the preceding phase, then run cards build --continue')
+
+
 def finish(build, name, lines):
     """Mark the phase done and open the next one, so resume is idempotent."""
     _phase(build, name, 'done')
@@ -350,9 +365,11 @@ def run(args):
     data = state.load(build)
     if data['phase'] == 'done':
         return Result(lines=[f'done · {build.root.name} complete'], files=[build.state])
+    require_predecessor(build, data)
     data = ensure_started(build, data)
     lines = []
     while data['phase'] != 'done':
+        require_predecessor(build, data)
         name = data['phase']
         outcome = BODIES[name](build, data, args)
         if isinstance(outcome, Result):

@@ -101,3 +101,35 @@ def test_verdict_disagreement_scopes_a_small_round(tmp_path):
 def test_build_help_is_valid():
     made = cli('build', '--help', cwd=Path.cwd())
     assert made.returncode == 0 and '--pdf' in made.stdout and '--continue' in made.stdout
+
+
+STAMP = '2026-11-06T00:00:00Z'
+
+
+def prepared(tmp_path, phase, previous):
+    folder, _ = fixture(tmp_path)
+    data = state(folder)
+    data['phase'] = phase
+    data['history'] = [
+        {'phase': previous, 'status': 'done', 'started_at': STAMP, 'ended_at': STAMP},
+        {'phase': phase, 'status': 'start', 'started_at': STAMP, 'ended_at': None}]
+    (folder / 'build.json').write_text(json.dumps(data))
+    return folder
+
+
+def test_build_refuses_a_skipped_phase(tmp_path):
+    folder = prepared(tmp_path, 'P4', 'P2')  # P3 never completed
+    made = cli('build', '--continue', '--build', folder, cwd=tmp_path)
+    assert made.returncode == 3 and 'previous phase P3' in made.stdout
+
+
+def test_build_refuses_gate_without_review(tmp_path):
+    folder = prepared(tmp_path, 'P5', 'P4')
+    made = cli('build', '--continue', '--build', folder, cwd=tmp_path)
+    assert made.returncode == 3 and 'review apply log missing' in made.stdout
+
+
+def test_build_refuses_write_before_gate(tmp_path):
+    folder = prepared(tmp_path, 'P6', 'P5')
+    made = cli('build', '--continue', '--build', folder, cwd=tmp_path)
+    assert made.returncode == 3 and 'gate not passed' in made.stdout
