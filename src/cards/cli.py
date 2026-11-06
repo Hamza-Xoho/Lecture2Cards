@@ -4,6 +4,7 @@ import sys
 from . import state, meter, extract, source, target, check, render, figures
 from .review import packets, apply
 from . import gate, report
+from . import build
 from .write import plan
 from .common.dispatch import execute
 from .common.errors import CardsError
@@ -36,6 +37,12 @@ def parser():
     p.add_argument('--build')
     p.add_argument('--out', required=True)
     p.add_argument('--line', action='store_true')
+    p = commands.add_parser('build', help='run the pipeline to the next pause', allow_abbrev=False)
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--pdf', metavar='PATH')
+    mode.add_argument('--continue', dest='cont', action='store_true')
+    mode.add_argument('--resume', action='store_true')
+    p.add_argument('--build')
     p = commands.add_parser('extract', allow_abbrev=False)
     p.add_argument('--build', required=True)
     p.add_argument('--slides')
@@ -84,7 +91,7 @@ def parser():
 
 def dispatch(argv):
     args = parser().parse_args(argv)
-    return {'state': state.run, 'meter': meter.run, 'extract': extract.run, 'source': source.run, 'target': target.run, 'check': check.run, 'render': render.run, 'figures': figures.run, 'packets': packets.run, 'apply': apply.run, 'gate': gate.run, 'write': plan.run, 'report': report.run}[args.command](args)
+    return {'state': state.run, 'meter': meter.run, 'build': build.run, 'extract': extract.run, 'source': source.run, 'target': target.run, 'check': check.run, 'render': render.run, 'figures': figures.run, 'packets': packets.run, 'apply': apply.run, 'gate': gate.run, 'write': plan.run, 'report': report.run}[args.command](args)
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)

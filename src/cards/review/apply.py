@@ -11,7 +11,15 @@ from cards.check.lint import lint
 
 
 def invalid(path,line,field):
-    raise CardsError('E61',f'{path}: line {line} field {field} invalid','repair the reviewer JSONL report')
+    raise CardsError('E61',f'{path}: line {line} field {field} invalid','repair the reviewer report')
+
+
+def report_path(build,folder,reviewer):
+    """Prefer the Markdown report; accept the legacy JSONL one on resume."""
+    for suffix in ('.md','.jsonl'):
+        path=build.path(f'{folder}/{reviewer}_report{suffix}')
+        if path.is_file(): return path
+    return build.path(f'{folder}/{reviewer}_report.md')
 
 
 def read_report(path,reviewer,ids,fields=None):

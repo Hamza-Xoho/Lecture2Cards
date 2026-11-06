@@ -6,7 +6,7 @@ from collections import Counter
 from . import meter
 from .common.paths import Build
 from .common.files import read_json, read_jsonl, write_text
-from .common.errors import Refused
+from .common.errors import Refused, CardsError
 from .common.hashing import sha256_file
 from .common.output import Result
 
@@ -27,7 +27,12 @@ def run(args):
     if written.get('created',0)+dup!=expected['created'] or any(written.get(k)!=expected[e] for k,e in [('updated','updated'),('suspended','suspend_notes')]):
         raise Refused('E72','write counts differ from plan','verify Anki read-back and record actual counts')
     session=os.environ.get('CLAUDE_SESSION_ID')
-    usage=meter.run(SimpleNamespace(build=str(b.root),session=session,latest=str(Path.cwd()) if not session else None,out=str(b.path('usage')),line=True))
+    try:
+        usage=meter.run(SimpleNamespace(build=str(b.root),session=session,latest=str(Path.cwd()) if not session else None,out=str(b.path('usage')),line=True))
+    except CardsError as exc:
+        # The report must not fail just because this runtime keeps no Claude transcript.
+        if exc.code!='E81': raise
+        usage=SimpleNamespace(status='OK',lines=['Usage: not metered (no session transcript found)'],exit_code=0)
     notes=[n for n in read_jsonl(b.path('drafts.jsonl')) if n['status']!='dropped']
     kinds=Counter(n['kind'] for n in notes); tiers=Counter(str(n['tier']) for n in notes)
     per_action={action:Counter(n['kind'] for n in notes if n['action']==action) for action in ('create','update')}
