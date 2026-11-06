@@ -7,9 +7,9 @@ from ..common.files import read_json, write_json, write_text
 from ..common.errors import CardsError
 from ..common.output import Result
 from ..common.source_data import source_path, selection
-from . import text_source, objectives, mapgen
+from . import text_source, objectives, mapgen, summary
 
-CACHE_VERSION = 4
+CACHE_VERSION = 5
 
 def run(args):
     build = Build(args.build)
@@ -21,7 +21,7 @@ def run(args):
     cache = build.path('source/slides.json')
     if cache.is_file():
         old = read_json(cache)
-        if isinstance(old,dict) and (old.get('source_sha256'),old.get('selection'),old.get('cache_version')) == (digest,args.slides,CACHE_VERSION) and all(build.path('source/'+f['file']).is_file() for s in old['slides'] for f in s['figures']) and build.path('source/map.md').is_file() and build.path('source/objectives.json').is_file():
+        if isinstance(old,dict) and (old.get('source_sha256'),old.get('selection'),old.get('cache_version')) == (digest,args.slides,CACHE_VERSION) and all(build.path('source/'+f['file']).is_file() for s in old['slides'] for f in s['figures']) and build.path('source/map.md').is_file() and build.path('source/objectives.json').is_file() and build.path('source/slides_summary.json').is_file():
             return Result(lines=[f"cache hit: {old['slide_count']} slides"], files=[build.path('source/map.md')])
     # Invalidate the manifest before replacing any associated figure crops.
     cache.unlink(missing_ok=True)
@@ -89,6 +89,7 @@ def run(args):
             'selection':args.slides,'cache_version':CACHE_VERSION,'slides':slides}
     write_json(cache,data,'cards extract')
     write_json(build.path('source/objectives.json'),objs,'cards extract')
+    write_json(build.path('source/slides_summary.json'),summary.build(lecture,slides,objs['objectives']),'cards extract')
     write_text(build.path('source/map.md'),mapgen.generate(lecture,slides,objs['objectives']),'cards extract')
     flagged = sum(bool(s['flags']) for s in slides)
     return Result('FINDINGS' if flagged or objs['flags'] else 'OK',
