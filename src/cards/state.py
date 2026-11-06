@@ -121,7 +121,8 @@ def record_write(build, data):
     if failed or (suspend and suspend.get('status') != 'success'):
         raise CardsError('E12', f'{path}: line 1 field write receipts report a failure', 'resolve the failed batch before recording')
     rnd = data['review'].get('round', 0)
-    reports = [build.path(f'review/round{rnd}/{who}_report.jsonl') for who in ('maintainer', 'student')]
+    from .review.apply import report_path
+    reports = [report_path(build, f'review/round{rnd}', who) for who in ('maintainer', 'student')]
     data['write'] = {**data.get('write', {}), 'created': sum(int(b.get('created', 0)) for b in r.get('batches', [])),
                      'updated': len(r.get('updates', [])), 'skipped_duplicate': sum(int(b.get('skipped_duplicate', 0)) for b in r.get('batches', [])), 'suspended': int(suspend.get('notes', 0)), 'errors': [], 'status': 'done'}
     data['review']['independent'] = bool(rnd) and all(p.exists() for p in reports)

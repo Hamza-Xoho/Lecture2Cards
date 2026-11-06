@@ -8,6 +8,7 @@ from cards.common.hashing import sha256_file
 from cards.common.errors import CardsError
 from cards.common.output import Result
 from cards.check.lint import lint
+from . import parse_report
 
 
 def invalid(path,line,field):
@@ -36,7 +37,7 @@ def read_report(path,reviewer,ids,fields=None):
         if r.get('reviewer')!=reviewer: invalid(path,line,'reviewer')
         kind=r.get('type')
         if kind=='note':
-            if not isinstance(r.get('note_id'),str) or r['note_id'] not in ids: invalid(path,line,'note_id')
+            if ids is not None and (not isinstance(r.get('note_id'),str) or r['note_id'] not in ids): invalid(path,line,'note_id')
             if r.get('verdict') not in ('pass','fix','reject'): invalid(path,line,'verdict')
             if type(r.get('blocker')) is not bool: invalid(path,line,'blocker')
             if not isinstance(r.get('evidence'),str): invalid(path,line,'evidence')
@@ -60,7 +61,7 @@ def read_report(path,reviewer,ids,fields=None):
         elif kind=='set':
             allowed={f'S{i}' for i in range(1,10)} if reviewer=='maintainer' else {f'V{i}' for i in range(1,10)}
             if not isinstance(r.get('code'),str) or r['code'] not in allowed: invalid(path,line,'code')
-            if not isinstance(r.get('notes'),list) or any(not isinstance(n,str) or n not in ids for n in r['notes']): invalid(path,line,'notes')
+            if not isinstance(r.get('notes'),list) or any(not isinstance(n,str) or (ids is not None and n not in ids) for n in r['notes']): invalid(path,line,'notes')
             if not all(isinstance(r.get(k),str) for k in ('finding','fix')): invalid(path,line,'finding/fix')
         elif kind=='summary':
             if r.get('verdict') not in ('PASS','PASS_WITH_FIXES','FAIL') or not isinstance(r.get('stats'),dict): invalid(path,line,'summary')
@@ -69,6 +70,21 @@ def read_report(path,reviewer,ids,fields=None):
         rows.append(r)
     if not closed: invalid(path,len(rows)+1,'closing summary missing')
     return rows
+
+
+def load_report(path,reviewer,ids=None,fields=None):
+    """Read Markdown reports, and legacy JSONL ones on resume."""
+    if not path.is_file(): invalid(path,1,'report missing')
+    if path.suffix.lower()=='.md':
+        return parse_report.parse(path,reviewer,ids,fields)
+    try:
+        first=next((line for line in path.read_text().splitlines()
+                    if line.strip() and not line.startswith('<!--')),'')
+    except (UnicodeError,OSError) as exc:
+        raise CardsError('E61',f'{path}: line 1 field report unreadable','write a UTF-8 report') from exc
+    if not first.lstrip().startswith('{'):
+        return parse_report.parse(path,reviewer,ids,fields)
+    return read_report(path,reviewer,ids,fields)
 
 
 def result(log,path):
@@ -89,14 +105,14 @@ def run(args):
     byid={n['id']:n for n in base}
     rows=[]; hashes={}
     for reviewer in ('maintainer','student'):
-        path=b.path(directory+'/'+reviewer+'_report.jsonl')
-        rows.extend(read_report(path,reviewer,set(byid),{n:v['fields'] for n,v in byid.items()}))
+        path=report_path(b,directory,reviewer)
+        rows.extend(load_report(path,reviewer,set(byid),{n:v['fields'] for n,v in byid.items()}))
         hashes[reviewer]=sha256_file(path)
     section_root=b.path(directory+'/maintainer-sections')
     if section_root.exists():
         for section in sorted(section_root.iterdir()):
-            path=b.path(directory+f'/maintainer_section{section.name}_report.jsonl')
-            rows.extend(read_report(path,'maintainer',set(byid),{n:v['fields'] for n,v in byid.items()}))
+            path=report_path(b,directory,f'maintainer_section{section.name}')
+            rows.extend(load_report(path,'maintainer',set(byid),{n:v['fields'] for n,v in byid.items()}))
             hashes['section'+section.name]=sha256_file(path)
     declines=[]
     for entry in args.decline:

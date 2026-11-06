@@ -27,7 +27,7 @@ def run(args):
     inputs=g.get('inputs',{})
     if not inputs or any((sha256_file(b.path(p)) if b.path(p).is_file() else None)!=h for p,h in inputs.items()):
         raise Refused('E71','gate stale: review or validation inputs changed','run cards gate again')
-    current={str(p.relative_to(b.root)) for p in b.path('review').rglob('*') if p.is_file() and (p.name.endswith('_report.jsonl') or p.name=='apply_log.json')}
+    current={str(p.relative_to(b.root)) for p in b.path('review').rglob('*') if p.is_file() and (p.name.endswith(('_report.jsonl','_report.md')) or p.name=='apply_log.json')}
     if current!={p for p in inputs if p.startswith('review/')}:
         raise Refused('E71','gate stale: review changed','run cards gate again')
     notes=[n for n in read_jsonl(b.path('drafts.jsonl')) if n['status']!='dropped']

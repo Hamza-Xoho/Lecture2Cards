@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from collections import Counter
 from . import meter
+from .review.apply import report_path, load_report
 from .common.paths import Build
 from .common.files import read_json, read_jsonl, write_text
 from .common.errors import Refused, CardsError
@@ -41,8 +42,8 @@ def run(args):
     skipped=list(read_jsonl(b.path('skipped.jsonl'))) if b.path('skipped.jsonl').exists() else []
     attempts=[]
     for k in (1,2):
-        path=b.path(f'review/round{k}/student_report.jsonl')
-        if path.exists(): attempts=[r['attempt']['result'] for r in read_jsonl(path) if r.get('type')=='note' and 'attempt' in r]
+        path=report_path(b,f'review/round{k}','student')
+        if path.is_file(): attempts=[r['attempt']['result'] for r in load_report(path,'student') if r.get('type')=='note' and 'attempt' in r]
     lines=['# Build report',f"Deck: {read_json(b.path('target.json'))['deck']}",
            f"Written: created {written['created']}; updated {written['updated']}; suspended {written['suspended']}"+(f"; skipped as duplicate of existing notes {dup}" if dup else ''),
            'Kinds created/updated: '+', '.join(f'{k} {per_action["create"][k]}/{per_action["update"][k]}' for k in sorted(kinds)),

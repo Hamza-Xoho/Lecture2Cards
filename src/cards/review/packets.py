@@ -179,7 +179,7 @@ def run(args):
             images=('pages/images.md' if pages else 'pages/ (none)') if reviewer=='maintainer' else 'sheets.json',
             context=('The brief placeholders mean drafts.jsonl, source_slices.md, objectives.json and house-style.md. Run reconcile.md searches instead of existing.jsonl.' if reviewer=='maintainer' else 'The brief manifest path means sheets.json in this packet.'),
             omitted=('Sheet pairs omitted: '+(', '.join(omitted) or 'none')+'.') if reviewer=='student' else '',
-            report=str(b.path(rounddir/(reviewer+'_report.jsonl'))))
+            report=str(b.path(rounddir/(reviewer+'_report.md'))))
         if tokens(prompt)+30>300:
             raise CardsError('E60','PROMPT.md: line 1 field size exceeds 300 tokens','shorten the build path or image list')
         write_text(b.path(dest/'PROMPT.md'),prompt,'cards packets')
@@ -210,7 +210,7 @@ def run(args):
             else:
                 manifest=b.path(dest/'pages'/'images.md')
                 if manifest.exists(): manifest.unlink()
-            report=b.path(rounddir/f'maintainer_section{index:02d}_report.jsonl')
+            report=b.path(rounddir/f'maintainer_section{index:02d}_report.md')
             prompt=(TEMPLATES/'PROMPT.md').read_text().format(agent='anki-maintainer',inputs='Read drafts.jsonl, source_slices.md, map.md, objectives.json, check.json, house-style.md and reconcile.md. Review per-note A1–A13 only.',context='Use packet-local paths in the brief.',images=('pages/images.md' if section_pages else 'pages/ (none)'),omitted='',report=str(report))
             write_text(b.path(dest/'PROMPT.md'),prompt,'cards packets')
     for prompt_path in b.path(rounddir).rglob('PROMPT.md'):
