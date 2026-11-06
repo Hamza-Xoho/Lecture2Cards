@@ -1,0 +1,16 @@
+builds/
+tests/fixtures/private/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
+!.env.example
+*.egg-info/
+build/
+dist/
+.DS_Store
+.mcp.json.local
+.claude-flow/
+.claude/settings.local.json
