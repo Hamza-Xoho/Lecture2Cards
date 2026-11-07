@@ -17,6 +17,9 @@ FIELD = re.compile(r'^\*\*\s*([^*]+?)\s*\*\*\s*(.*)$')
 HEADLINE = re.compile(r'^(PASS|FIX|REJECT)\b\s*(?:[—–-]\s*(.*))?$', re.I)
 BLOCKER = re.compile(r'\(\s*blocker\s*\)', re.I)
 RESULT = ('right', 'alternative', 'unknowable')
+ARROW = re.compile(r'(?:→|->|=>)\s*(right|alternative|unknowable)\b', re.I)
+# Reviewers write per-cloze attempts; the note's result is the worst one.
+SEVERITY = {'right': 0, 'unknowable': 1, 'alternative': 2}
 
 FIELDS = {'text': 'Text', 'extra': 'Extra', 'header': 'Header', 'back extra': 'Back Extra',
           'comments': 'Comments', 'occlusion': 'Occlusion', 'image': 'Image'}
@@ -80,9 +83,12 @@ def _rewrite(reviewer, fields, known, path, line):
             continue
         field = name[len('rewrite'):].strip()
         key = FIELDS.get(field, ' '.join(word.capitalize() for word in field.split()))
-        if key.lower() in ('tags', 'tag'):
+        if key.lower() in ('tags', 'tag', 'objective'):
             continue
         if known is not None and key not in known:
+            # Ignore no-op foreign fields, but never silently lose a correction.
+            if key in FIELDS.values() and value.lower() == 'unchanged':
+                continue
             invalid(path, number, 'rewrite fields')
         if value and value.lower() != 'unchanged':
             rewrite[key] = value
@@ -99,9 +105,11 @@ def _attempt(reviewer, fields, path, line):
         elif name in ('attempt result', 'result'):
             result = value.strip().lower()
     if answer is not None and result is None:
-        parts = re.split(r'\s*(?:→|->|=>)\s*', answer)
-        if len(parts) == 2:
-            answer, result = parts[0].strip(), parts[1].strip().lower()
+        found = [item.lower() for item in ARROW.findall(answer)]
+        if found:
+            result = max(found, key=SEVERITY.__getitem__)
+            if len(found) == 1:
+                answer = re.split(r'\s*(?:→|->|=>)\s*', answer, maxsplit=1)[0].strip()
     if not isinstance(answer, str) or result not in RESULT:
         invalid(path, line, 'attempt')
     return {'answer': answer, 'result': result}
@@ -152,8 +160,13 @@ def _set(reviewer, rest, line, body, ids, path):
     if code not in allowed:
         invalid(path, line, 'code')
     values = _fields(body, path)
-    notes = [part.strip() for part in re.split(r'[,\s]+',
-             values.get('notes affected', (line, ''))[1]) if part.strip()]
+    # A semicolon separates the ID list from optional reviewer commentary.
+    raw_notes, _, commentary = values.get('notes affected', (line, ''))[1].partition(';')
+    if ids is not None and any(re.search(r'(?<![\w-])' + re.escape(ident) + r'(?![\w-])', commentary)
+                               for ident in ids):
+        invalid(path, line, 'notes: use commas between IDs')
+    notes = [part.strip().strip('`') for part in re.split(r'[,\s]+', raw_notes)
+             if part.strip()]
     if ids is not None and any(note not in ids for note in notes):
         invalid(path, line, 'notes')
     if not notes:
@@ -175,7 +188,8 @@ def _summary(reviewer, line, body, path):
     raw = values.get('stats', (line, ''))[1]
     for part in filter(None, (item.strip() for item in raw.split(','))):
         key, sep, value = part.partition('=')
-        if not sep or not re.fullmatch(r'-?\d+', value.strip()):
+        value = re.sub(r'\s*\(.*', '', value).strip()
+        if not sep or not re.fullmatch(r'-?\d+', value):
             invalid(path, values['stats'][0], 'stats')
         stats[key.strip()] = int(value)
     if not stats:

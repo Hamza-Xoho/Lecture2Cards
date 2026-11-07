@@ -48,7 +48,7 @@ def _summary(build):
                          'draft': occluded.get(figure.get('fig_id'))})
     parts = ['# Figure candidates', '',
              'Text only: decide from these labels, then run `cards figures --fig <id>`.',
-             'Read only the generated `*_preview.png`, never the full figure.', '']
+             'Inspect the extracted figure to choose masks; check generated `*_preview.png` after masking.', '']
     for row in rows:
         parts.append(f"## {row['id']} — slide {row['slide']} · {row['kind']} · "
                      f"{len(row['labels'])} labels")
@@ -230,7 +230,9 @@ def run(args):
         number = int(target.get('number', 0))
     except (ValueError, TypeError) as exc:
         raise _invalid('target.number') from exc
-    filename = f'L{number:03d}_{ident}.png' if number > 0 else f'{ident}.png'
+    # AnkiMCP normalizes stored media names to lowercase. Use the same name
+    # before rendering and gating so writes need no field repair.
+    filename = (f'l{number:03d}_{ident}.png' if number > 0 else f'{ident}.png').lower()
     note = {'kind': 'io', 'notetype': note_type, 'deck': deck,
             'fields': {'Occlusion': _occlusion(regions, mode),
                        'Image': f'<img src="{html.escape(filename, quote=True)}">',

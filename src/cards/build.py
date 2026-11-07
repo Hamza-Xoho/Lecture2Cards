@@ -209,6 +209,12 @@ def _packetized(build, rnd):
 
 
 def _rerender(build, ids):
+    active = {n['id'] for n in read_jsonl(build.path('drafts.jsonl'))
+              if isinstance(n, dict) and isinstance(n.get('id'), str) and n.get('status') != 'dropped'}
+    if not ids or not set(ids) <= active:
+        # apply lists dropped notes as changed; they no longer exist, so the sheets shifted.
+        render.run(_args(build, only=None, per_sheet=8, anki_html=None))
+        return
     try:
         render.run(_args(build, only=','.join(ids), per_sheet=8, anki_html=None))
     except Refused:
@@ -240,13 +246,15 @@ def review_scope(build, rnd, log):
         return None
     hard = {c['id'] for c in log.get('conflicts', [])
             if isinstance(c, dict) and isinstance(c.get('id'), str)}
-    ids = sorted(hard | _verdict_conflicts(build, rnd))
+    blocker_ids = {b['note_id'] for b in log.get('open_blockers', [])
+                   if isinstance(b, dict) and isinstance(b.get('note_id'), str)}
+    ids = sorted(hard | _verdict_conflicts(build, rnd) | blocker_ids)
     unresolved = log.get('unresolved') or []
     blockers = log.get('open_blockers') or []
     css = log.get('css_fix_needed') or []
     if not ids and not unresolved and not blockers and not css:
         return None
-    full = len(ids) > 3 or bool(unresolved) or bool(blockers) or bool(css)
+    full = len(ids) > 3 or bool(unresolved) or bool(css)
     return ids, full
 
 

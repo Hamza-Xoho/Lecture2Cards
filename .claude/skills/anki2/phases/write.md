@@ -4,15 +4,15 @@ Load at P5 or on resume in P5–P7; do not load draft.md or reviewer templates.
 
 ## P5: automatic gate
 
-Run `.venv/bin/cards gate --build <build>`. Passed means continue without asking
+Use `cards build --continue`; it runs `.venv/bin/cards gate --build <build>` internally. Passed means continue without asking
 for approval. Failure means no writes: follow the findings and return to P4
 if a review round remains; otherwise stop with blockers. Never bypass a
 stale hash, edit gate evidence, or add a force flag.
 
 ## P6: stage 1 inline
 
-Run `.venv/bin/cards write --build <build>` only after gate passes. It generates
-plans/import files; it has **not written to Anki**. Q-1 has no successful direct
+At the P6 pause the controller has already run `.venv/bin/cards write --build <build>`
+after gate passes. Use those generated plans/import files; they have **not written to Anki**. Q-1 has no successful direct
 probe: the shipped CLI has no `--direct`. Do not attempt it or shell HTTP.
 
 1. Read `write/expected.json`, `write/suspend.json`, `write/updates.json` and
@@ -51,12 +51,8 @@ probe: the shipped CLI has no `--direct`. Do not attempt it or shell HTTP.
    Do not silently unsuspend anything. AnKing matches remain proposals unless
    the user has explicitly requested their unsuspension; use their **card** ids.
 7. Only after actual writes and read-back match `expected.json`, run
-   `.venv/bin/cards state record-write --build <build>`. It reads `write/receipts.json`
-   (never planned counts), refuses on any failed batch, records `created`, `updated`,
-   `suspended` (notes in the planned suspension list), `errors` and `status: done`
-   under `build.json.write`, and sets `review.independent` only if both reviewers'
-   reports exist for the last round. Do not edit `build.json` by hand. Finish with
-   `.venv/bin/cards state phase --build <build> P6 done`.
+   `cards build --continue`. The CLI auto-records receipts, runs P7 (report)
+   and closes the build. Never edit `build.json` or run phase commands by hand.
 
 A hard MCP/Anki error or permission refusal stops the run. Say what failed,
 which batches succeeded, and how to resume safely. Offer `write/import.txt`
@@ -66,11 +62,7 @@ imported deck. Do not retry via ports, curl or another connector.
 
 ## P7: report
 
-Start P7 and run `.venv/bin/cards report --build <build>`. It requires real write
-counts and meters the current Claude session; retain the actual usage line.
-If usage evidence is unavailable, report that error instead of fabricating cost.
-Use its output once as the concise handoff: deck/search, counts, tiers,
-suspension, figures/skips, review rounds and unresolved issues, then usage and
-sync reminder. Link any proposals/receipts the user needs; do not paste files.
-Mark P7 done, then `.venv/bin/cards state phase --build <build> done start`
-as in the core map; the terminal phase accepts no further transitions. Report removes only this build's matching `builds/.current` pointer.
+Use the report from the P6 continuation: it already writes the report, closes
+the build and removes `.current`. Do not continue again after closure. If
+resuming an unfinished P7, use `cards build --continue --build <build>`.
+No manual phase commands.

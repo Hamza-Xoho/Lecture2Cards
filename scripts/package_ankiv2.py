@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Package the anki2 skill and its two reviewer agents as the public `ankiv2` skill.
 
-Usage: .venv/bin/python scripts/package_ankiv2.py [--install] [--runtime all|claude|opencode]
+Usage: .venv/bin/python scripts/package_ankiv2.py [--install] [--runtime all|claude|opencode|codex]
 Builds dist/ankiv2/ and dist/ankiv2.zip. With --install, copies the skill and
 agents to the selected runtime's user directories (existing copies are replaced).
 
@@ -26,17 +26,10 @@ AGENTS_SRC = REPO / '.claude/agents'
 DIST = REPO / 'dist/ankiv2'
 
 DESCRIPTION = (
-    'Make AnKing-style Anki cloze and image-occlusion cards from one lecture PDF, review them with two independent '
-    'subagents, and write them to Anki. HOW TO USE: (1) install the `cards` CLI (uv tool install / pipx install) and '
-    'open Anki with the AnkiMCP add-on running; (2) in Claude Code run /ankiv2 with the lecture PDF path, or in '
-    'OpenCode ask for the ankiv2 skill and give that path, e.g. "/ankiv2 /path/MED241_L006_topic.pdf", or add a slide '
-    'range ("slides 5-12"); (3) wait about 30 to 60 '
-    'minutes: it extracts, drafts, checks, runs maintainer and student review (up to two rounds), passes an automatic '
-    'gate, writes the notes under #ColdRecall:: tags into a flat deck, and prints a short report; (4) sync Anki when it '
-    'says so. One lecture per build: merged or multi-lecture PDFs are refused. To resume an interrupted or usage-limited '
-    'build, ask again with the same PDF; it continues from build.json. Existing notes are never deleted; updates are '
-    'limited to notes under the build\'s source tag, and duplicates Anki refuses are skipped and listed. Builds live in '
-    './builds under the folder where you run the skill. Not for general Anki questions.'
+    'Make reviewed Anki cloze and image-occlusion cards from one lecture PDF, or resume its build. '
+    'Use /ankiv2 with an absolute PDF path in Codex, Claude Code or OpenCode. '
+    'Requires the cards CLI and connected Anki MCP tools. Builds persist under ./builds or CARDS_BUILDS. '
+    'Not for general Anki questions or editing unrelated existing cards.'
 )
 
 OPENCODE_AGENT_PERMISSIONS = """permissions:
@@ -110,6 +103,12 @@ def install(runtime: str) -> None:
         targets.append((HOME / '.claude/skills/ankiv2', HOME / '.claude/agents', 'claude'))
     if runtime in ('all', 'opencode'):
         targets.append((config_home() / 'opencode/skills/ankiv2', config_home() / 'opencode/agents', 'opencode'))
+    if runtime in ('all', 'codex'):
+        skill = HOME / '.agents/skills/ankiv2'
+        if skill.exists():
+            shutil.rmtree(skill)
+        shutil.copytree(DIST / 'skill', skill)
+        print(f'installed codex skill to {skill} (uses host reviewer subagents)')
     for skill, agents, name in targets:
         if skill.exists():
             shutil.rmtree(skill)
@@ -123,7 +122,7 @@ def install(runtime: str) -> None:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--install', action='store_true')
-    parser.add_argument('--runtime', choices=('all', 'claude', 'opencode'), default='all')
+    parser.add_argument('--runtime', choices=('all', 'claude', 'opencode', 'codex'), default='all')
     args = parser.parse_args()
     build()
     if args.install:

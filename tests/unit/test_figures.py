@@ -113,3 +113,10 @@ def test_malformed_output_provenance_does_not_crash(figure_build):
     with pytest.raises(CardsError):
         run(figure_build)
     assert output.read_bytes() == b'keep this file'
+
+
+def test_media_name_matches_anki_normalization(figure_build):
+    run(figure_build)
+    note = json.loads((figure_build/'drafts.jsonl').read_text().splitlines()[1])
+    assert note['media'][0]['filename'] == 'l001_p01_f1.png'
+    assert note['fields']['Image'] == '<img src="l001_p01_f1.png">'

@@ -2,7 +2,8 @@
 
 Use only for figures selected by objective coverage. Never Read the PDF.
 
-1. Locate a `fig_id` with the map and
+1. Read the exact `fig_id` from that slide in `source/slides.json`, or from
+   `cards figures --build <build> --summary`. Never guess its spelling. Then run
    `.venv/bin/cards source --build <build> --figure <fig_id>`.
    Read the named extracted figure PNG before choosing masks. For a map-flagged
    slide use `source --build <build> --page-image N` and Read only its PNG.

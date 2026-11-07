@@ -79,14 +79,16 @@ uvx --from playwright==1.64.1 playwright install chromium
 ### 2. Install the skill and reviewer agents
 
 ```sh
-python3 scripts/package_ankiv2.py --install                  # Claude Code and OpenCode
+python3 scripts/package_ankiv2.py --install                  # Codex, Claude Code and OpenCode
 python3 scripts/package_ankiv2.py --install --runtime claude   # Claude Code only
 python3 scripts/package_ankiv2.py --install --runtime opencode # OpenCode only
+python3 scripts/package_ankiv2.py --install --runtime codex    # Codex only
 ```
 
-This copies the skill to `~/.claude/skills/ankiv2` and/or
+This copies the Codex skill to `~/.agents/skills/ankiv2`, and the other runtime skills to `~/.claude/skills/ankiv2` and/or
 `~/.config/opencode/skills/ankiv2`, and the two reviewer agents next to it.
-Re-run it after you update the repository.
+Codex uses fresh isolated host subagents for its two reviewer roles.
+Re-run the installer after you update the repository.
 
 ### 3. Connect Anki
 

@@ -85,7 +85,7 @@ def test_review_scope_rules(tmp_path):
     b = scope_fixture(tmp_path)
     blocker = {'conflicts': [], 'open_blockers': [{'note_id': 'n001'}], 'unresolved': [],
                'css_fix_needed': []}
-    assert build.review_scope(b, 1, blocker) == (['n001'], True)
+    assert build.review_scope(b, 1, blocker) == (['n001'], False)
     wide = {'conflicts': [{'id': f'n00{i}'} for i in range(1, 5)], 'open_blockers': [],
             'unresolved': [], 'css_fix_needed': []}
     assert build.review_scope(b, 1, wide) == ([f'n00{i}' for i in range(1, 5)], True)
