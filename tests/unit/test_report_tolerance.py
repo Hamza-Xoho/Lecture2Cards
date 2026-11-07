@@ -97,3 +97,23 @@ def test_semicolon_cannot_silently_drop_an_affected_note(tmp_path):
                     '## Summary\n**Verdict:** FAIL\n**Stats:** notes=2\n')
     with pytest.raises(CardsError):
         parse_report.parse(path, 'maintainer', {'n001', 'n002'}, FIELDS)
+
+
+def test_summary_stats_do_not_absorb_closing_commentary(tmp_path):
+    path = tmp_path / 'student_report.md'
+    path.write_text('# Review Report — anki-student\n'
+                    '## Note n001 — PASS\n**Attempt:** answer → right\n'
+                    '## Summary\n**Verdict:** PASS_WITH_FIXES\n'
+                    '**Stats:** cards=114, attempts_right=111, alternatives=3\n\n'
+                    'The three V2 alternatives require maintainer A2 review.\n')
+    rows = parse_report.parse(path, 'student', {'n001'}, FIELDS)
+    assert rows[-1]['stats'] == {'cards': 114, 'attempts_right': 111, 'alternatives': 3}
+
+
+def test_malformed_stats_value_is_not_hidden_as_commentary(tmp_path):
+    path = tmp_path / 'student_report.md'
+    path.write_text('# Review Report — anki-student\n'
+                    '## Note n001 — PASS\n**Attempt:** answer → right\n'
+                    '## Summary\n**Verdict:** PASS\n**Stats:** cards=many\n')
+    with pytest.raises(CardsError):
+        parse_report.parse(path, 'student', {'n001'}, FIELDS)

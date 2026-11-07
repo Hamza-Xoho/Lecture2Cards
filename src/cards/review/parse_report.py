@@ -47,7 +47,7 @@ def _codes(reviewer, value, path, line):
     return list(dict.fromkeys(codes))
 
 
-def _fields(lines, path):
+def _fields(lines, path, single_line_fields=()):
     """`**Name:** value` plus continuation lines until the next field."""
     values, name, buffer, start = {}, None, [], None
 
@@ -67,7 +67,8 @@ def _fields(lines, path):
         elif name is not None:
             if line.startswith('#'):
                 invalid(path, number, 'field')
-            buffer.append(line.strip())
+            if name not in single_line_fields:
+                buffer.append(line.strip())
     flush()
     return values
 
@@ -180,7 +181,8 @@ def _set(reviewer, rest, line, body, ids, path):
 
 
 def _summary(reviewer, line, body, path):
-    values = _fields(body, path)
+    # Stats are a single-line record; closing prose is not part of a count.
+    values = _fields(body, path, single_line_fields={'stats'})
     verdict = values.get('verdict', (line, ''))[1].strip().upper()
     if verdict not in ('PASS', 'PASS_WITH_FIXES', 'FAIL'):
         invalid(path, line, 'summary')
